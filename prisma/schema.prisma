@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Post {
+  id           String    @id @default(uuid())
+  text         String
+  source       String
+  topic        String
+  status       String    @default("unposted") // unposted, posted, archived
+  format       String    @default("informative") // informative, entertaining, engaging
+  type         String    @default("post") // thread, post
+  brandVoiceId String?
+  feedback     String    @default("pending") // pending, approved, denied
+  createdAt    DateTime  @default(now())
+  postedAt     DateTime?
+}
+
+model Settings {
+  id                  Int     @id @default(1)
+  autoGenEnabled      Boolean @default(false)
+  autoGenTime         String  @default("08:00")
+  postsPerRun         Int     @default(5)
+  threadCount         Int     @default(2)
+  postCount           Int     @default(3)
+  informativeCount    Int     @default(2)
+  entertainingCount   Int     @default(1)
+  engagingCount       Int     @default(2)
+  brandVoiceExamples  String  @default("")
+  brandVoiceTone      String  @default("professional")
+  includeEmojis       Boolean @default(false)
+  useHashtags         Boolean @default(false)
+  postLength          String  @default("medium") // short, medium, long
+  ctaStyle            String  @default("none") // question, link, cta, none
+  claudeApiKey        String  @default("")
+  gmailAccessToken    String  @default("")
+  gmailRefreshToken   String  @default("")
+  niche               String  @default("")
+}
+
+model Newsletter {
+  id          String   @id @default(uuid())
+  senderEmail String   @unique
+  senderName  String
+  enabled     Boolean  @default(true)
+  lastChecked DateTime?
+}
+
+model ContentSource {
+  id           String   @id @default(uuid())
+  url          String
+  name         String
+  type         String   // website, reddit, rss
+  scrapeFreq   String   @default("daily") // daily, weekly, monthly
+  lastScraped  DateTime?
+  enabled      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}
+
+model ScrapedContent {
+  id           String   @id @default(uuid())
+  sourceId     String
+  title        String
+  content      String
+  url          String
+  scrapedAt    DateTime @default(now())
+  used         Boolean  @default(false)
+}
+
+model BrandVoice {
+  id            String   @id @default(uuid())
+  name          String
+  tone          String   // professional, casual, etc.
+  sampleTweets  String   // JSON array of 3-10 sample tweets
+  analyzedStyle String   @default("") // AI-generated style description
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+}

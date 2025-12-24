@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 20% 98%;
+    --foreground: 20 14% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 20 14% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 14% 15%;
+    --primary: 16 60% 52%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 40 20% 94%;
+    --secondary-foreground: 20 14% 15%;
+    --muted: 40 15% 94%;
+    --muted-foreground: 20 10% 45%;
+    --accent: 16 60% 52%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 30 15% 88%;
+    --input: 30 15% 88%;
+    --ring: 16 60% 52%;
+    --chart-1: 16 60% 52%;
+    --chart-2: 142 50% 45%;
+    --chart-3: 221 60% 55%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.75rem;
+    
+    --terracotta: 16 60% 52%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+@layer utilities {
+  .bg-terracotta {
+    background-color: hsl(16 60% 52%);
+  }
+  .text-terracotta {
+    color: hsl(16 60% 52%);
+  }
+  .from-terracotta {
+    --tw-gradient-from: hsl(16 60% 52%) var(--tw-gradient-from-position);
+    --tw-gradient-to: hsl(16 60% 52% / 0) var(--tw-gradient-to-position);
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+  }
+  .to-terracotta\/80 {
+    --tw-gradient-to: hsl(16 60% 52% / 0.8) var(--tw-gradient-to-position);
+  }
+  .border-terracotta {
+    border-color: hsl(16 60% 52%);
+  }
+}
