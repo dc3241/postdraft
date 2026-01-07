@@ -7,7 +7,7 @@ export async function GET(request: Request) {
   const code = searchParams.get('code');
 
   if (!code) {
-    return NextResponse.redirect('/settings?error=no_code');
+    return NextResponse.redirect('/preferences?error=no_code');
   }
 
   try {
@@ -25,10 +25,10 @@ export async function GET(request: Request) {
       },
     });
 
-    return NextResponse.redirect('/settings?success=gmail_connected');
+    return NextResponse.redirect('/preferences?success=gmail_connected');
   } catch (error) {
     console.error('Gmail auth error:', error);
-    return NextResponse.redirect('/settings?error=auth_failed');
+    return NextResponse.redirect('/preferences?error=auth_failed');
   }
 }
 

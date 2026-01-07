@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
-import { Loader2, ChevronDown, ChevronUp, ListTree, MessageSquare, Sparkles } from 'lucide-react';
+import { Select } from '@/components/ui/select';
+import { Loader2, ChevronDown, ChevronUp, ListTree, MessageSquare, Sparkles, Mic2 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 
 interface GenerateConfig {
@@ -14,11 +15,19 @@ interface GenerateConfig {
   informativeCount: number;
   entertainingCount: number;
   engagingCount: number;
+  brandVoiceId?: string;
+}
+
+interface BrandVoice {
+  id: string;
+  name: string;
+  isDefault: boolean;
 }
 
 export function GenerateButton({ onGenerate }: { onGenerate: () => void }) {
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [brandVoices, setBrandVoices] = useState<BrandVoice[]>([]);
   const [config, setConfig] = useState<GenerateConfig>({
     totalPosts: 5,
     threadCount: 2,
@@ -26,8 +35,28 @@ export function GenerateButton({ onGenerate }: { onGenerate: () => void }) {
     informativeCount: 2,
     entertainingCount: 1,
     engagingCount: 2,
+    brandVoiceId: undefined,
   });
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetchBrandVoices();
+  }, []);
+
+  async function fetchBrandVoices() {
+    try {
+      const response = await fetch('/api/brand-voices');
+      const data = await response.json();
+      setBrandVoices(data);
+      // Set default brand voice if available
+      const defaultVoice = data.find((v: BrandVoice) => v.isDefault);
+      if (defaultVoice) {
+        setConfig(prev => ({ ...prev, brandVoiceId: defaultVoice.id }));
+      }
+    } catch (error) {
+      console.error('Error fetching brand voices:', error);
+    }
+  }
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -60,6 +89,7 @@ export function GenerateButton({ onGenerate }: { onGenerate: () => void }) {
           count: config.totalPosts,
           types: types.length > 0 ? types : ['post'],
           formats: formats.length > 0 ? formats : ['informative'],
+          brandVoiceId: config.brandVoiceId || undefined,
         }),
       });
       onGenerate();
@@ -141,6 +171,27 @@ export function GenerateButton({ onGenerate }: { onGenerate: () => void }) {
                 </div>
               </div>
             </div>
+
+            {/* Brand Voice Selection */}
+            {brandVoices.length > 0 && (
+              <div>
+                <Label className="text-sm text-muted-foreground mb-2 block flex items-center gap-2">
+                  <Mic2 className="w-3 h-3" />
+                  Brand Voice
+                </Label>
+                <Select
+                  value={config.brandVoiceId || ''}
+                  onChange={(e) => setConfig({ ...config, brandVoiceId: e.target.value || undefined })}
+                >
+                  <option value="">Use Default</option>
+                  {brandVoices.map((voice) => (
+                    <option key={voice.id} value={voice.id}>
+                      {voice.name} {voice.isDefault && '(Default)'}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
 
             {/* Format Distribution */}
             <div>

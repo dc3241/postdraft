@@ -32,17 +32,31 @@ export async function scrapeSource(sourceId: string): Promise<ScrapedItem[]> {
       items = await scrapeWebsite(source.url);
   }
 
-  // Save scraped content to database
+  // Save scraped content to database (skip duplicates)
+  let savedCount = 0;
   for (const item of items) {
-    await prisma.scrapedContent.create({
-      data: {
+    // Check if this URL was already scraped for this source
+    const existing = await prisma.scrapedContent.findFirst({
+      where: {
         sourceId: source.id,
-        title: item.title,
-        content: item.content,
         url: item.url,
       },
     });
+
+    if (!existing) {
+      await prisma.scrapedContent.create({
+        data: {
+          sourceId: source.id,
+          title: item.title,
+          content: item.content,
+          url: item.url,
+        },
+      });
+      savedCount++;
+    }
   }
+
+  console.log(`Scraped ${items.length} items, saved ${savedCount} new items (${items.length - savedCount} duplicates skipped)`);
 
   // Update last scraped time
   await prisma.contentSource.update({

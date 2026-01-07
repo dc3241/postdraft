@@ -20,6 +20,38 @@ export async function getTokensFromCode(code: string) {
   return tokens;
 }
 
+async function refreshAccessToken(): Promise<string> {
+  const settings = await prisma.settings.findUnique({ where: { id: 1 } });
+  
+  if (!settings?.gmailRefreshToken) {
+    throw new Error('Gmail refresh token not available. Please reconnect Gmail.');
+  }
+
+  oauth2Client.setCredentials({
+    refresh_token: settings.gmailRefreshToken,
+  });
+
+  try {
+    const { credentials } = await oauth2Client.refreshAccessToken();
+    const newAccessToken = credentials.access_token;
+    
+    if (!newAccessToken) {
+      throw new Error('Failed to refresh access token');
+    }
+
+    // Save the new access token
+    await prisma.settings.update({
+      where: { id: 1 },
+      data: { gmailAccessToken: newAccessToken },
+    });
+
+    return newAccessToken;
+  } catch (error) {
+    console.error('Error refreshing access token:', error);
+    throw new Error('Gmail token expired. Please reconnect Gmail.');
+  }
+}
+
 export async function getNewsletterEmails() {
   const settings = await prisma.settings.findUnique({ where: { id: 1 } });
   
@@ -27,8 +59,10 @@ export async function getNewsletterEmails() {
     throw new Error('Gmail not connected');
   }
 
+  let accessToken = settings.gmailAccessToken;
+
   oauth2Client.setCredentials({
-    access_token: settings.gmailAccessToken,
+    access_token: accessToken,
     refresh_token: settings.gmailRefreshToken,
   });
 
@@ -38,38 +72,70 @@ export async function getNewsletterEmails() {
   const emails: Array<{ source: string; content: string }> = [];
   
   for (const newsletter of newsletters) {
-    // Search for emails from this sender in last 24 hours
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const query = `from:${newsletter.senderEmail} after:${oneDayAgo}`;
-    
-    const response = await gmail.users.messages.list({
-      userId: 'me',
-      q: query,
-    });
-
-    if (response.data.messages) {
-      for (const message of response.data.messages) {
-        const msg = await gmail.users.messages.get({
+    try {
+      // Search for emails from this sender in last 24 hours
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const query = `from:${newsletter.senderEmail} after:${oneDayAgo}`;
+      
+      let response;
+      try {
+        response = await gmail.users.messages.list({
           userId: 'me',
-          id: message.id!,
-          format: 'full',
+          q: query,
         });
-
-        // Extract email body (simplified - you'll need to handle HTML/multipart)
-        const body = getEmailBody(msg.data);
-        
-        emails.push({
-          source: newsletter.senderName,
-          content: body,
-        });
+      } catch (error: any) {
+        // If token expired, refresh and retry
+        if (error.code === 401) {
+          console.log('Access token expired, refreshing...');
+          accessToken = await refreshAccessToken();
+          oauth2Client.setCredentials({
+            access_token: accessToken,
+            refresh_token: settings.gmailRefreshToken,
+          });
+          
+          response = await gmail.users.messages.list({
+            userId: 'me',
+            q: query,
+          });
+        } else {
+          throw error;
+        }
       }
-    }
 
-    // Update last checked
-    await prisma.newsletter.update({
-      where: { id: newsletter.id },
-      data: { lastChecked: new Date() },
-    });
+      if (response.data.messages) {
+        for (const message of response.data.messages) {
+          try {
+            const msg = await gmail.users.messages.get({
+              userId: 'me',
+              id: message.id!,
+              format: 'full',
+            });
+
+            // Extract email body with improved HTML parsing
+            const body = getEmailBody(msg.data);
+            
+            if (body) {
+              emails.push({
+                source: newsletter.senderName,
+                content: body,
+              });
+            }
+          } catch (error) {
+            console.error(`Error fetching message ${message.id}:`, error);
+            // Continue with next message
+          }
+        }
+      }
+
+      // Update last checked
+      await prisma.newsletter.update({
+        where: { id: newsletter.id },
+        data: { lastChecked: new Date() },
+      });
+    } catch (error) {
+      console.error(`Error processing newsletter ${newsletter.senderName}:`, error);
+      // Continue with next newsletter
+    }
   }
 
   return emails;
@@ -79,16 +145,74 @@ function getEmailBody(message: any): string {
   // Extract plain text from email (handle HTML/multipart)
   const parts = message.payload?.parts || [message.payload];
   
-  for (const part of parts) {
-    if (part.mimeType === 'text/plain' && part.body?.data) {
-      return Buffer.from(part.body.data, 'base64').toString('utf-8');
+  let plainText = '';
+  let htmlText = '';
+  
+  // Recursively extract parts
+  function extractParts(partList: any[]) {
+    for (const part of partList) {
+      if (part.parts) {
+        extractParts(part.parts);
+      }
+      
+      if (part.mimeType === 'text/plain' && part.body?.data) {
+        plainText = Buffer.from(part.body.data, 'base64').toString('utf-8');
+      }
+      if (part.mimeType === 'text/html' && part.body?.data) {
+        htmlText = Buffer.from(part.body.data, 'base64').toString('utf-8');
+      }
     }
-    if (part.mimeType === 'text/html' && part.body?.data) {
-      // Fallback to HTML if plain text not available
-      return Buffer.from(part.body.data, 'base64').toString('utf-8');
+  }
+  
+  extractParts(parts);
+  
+  // Prefer plain text, but if not available, extract text from HTML
+  if (plainText) {
+    return plainText.trim();
+  }
+  
+  if (htmlText) {
+    return extractTextFromHTML(htmlText);
+  }
+  
+  // Fallback: check if body data exists directly
+  if (message.payload?.body?.data) {
+    const text = Buffer.from(message.payload.body.data, 'base64').toString('utf-8');
+    if (message.payload.mimeType === 'text/plain') {
+      return text.trim();
+    }
+    if (message.payload.mimeType === 'text/html') {
+      return extractTextFromHTML(text);
     }
   }
   
   return '';
+}
+
+function extractTextFromHTML(html: string): string {
+  // Remove script and style tags and their content
+  let text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+  text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+  
+  // Convert common HTML entities
+  text = text.replace(/&nbsp;/g, ' ');
+  text = text.replace(/&amp;/g, '&');
+  text = text.replace(/&lt;/g, '<');
+  text = text.replace(/&gt;/g, '>');
+  text = text.replace(/&quot;/g, '"');
+  text = text.replace(/&#39;/g, "'");
+  
+  // Remove HTML tags
+  text = text.replace(/<[^>]+>/g, ' ');
+  
+  // Clean up whitespace
+  text = text.replace(/\s+/g, ' ');
+  text = text.replace(/\n\s*\n/g, '\n');
+  
+  // Decode any remaining entities
+  text = text.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec));
+  text = text.replace(/&#x([a-f\d]+);/gi, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
+  
+  return text.trim();
 }
 

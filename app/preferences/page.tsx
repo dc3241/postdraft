@@ -7,9 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Key, Clock, Target, Palette } from 'lucide-react';
+import { Clock, Target, Palette } from 'lucide-react';
 
-export default function Settings() {
+export default function Preferences() {
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -57,42 +57,11 @@ export default function Settings() {
   return (
     <div className="p-8 w-full space-y-6">
       <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-foreground">Settings</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Preferences</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Manage your account preferences and generation settings
+          Customize your post generation preferences and configuration
         </p>
       </div>
-
-      {/* API Keys */}
-      <Card className="border-border shadow-sm">
-        <CardHeader className="pb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-violet-50 flex items-center justify-center">
-              <Key className="w-4 h-4 text-violet-600" />
-            </div>
-            <div>
-              <CardTitle className="text-base">API Configuration</CardTitle>
-              <CardDescription>Manage your API credentials</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="claudeKey">Claude API Key</Label>
-            <Input
-              id="claudeKey"
-              type="password"
-              value={settings.claudeApiKey}
-              onChange={(e) => updateSettings({ claudeApiKey: e.target.value })}
-              placeholder="sk-ant-..."
-              className="mt-1.5"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Get your API key from the Anthropic Console
-            </p>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Niche / Topic Focus */}
       <Card className="border-border shadow-sm">
@@ -253,3 +222,4 @@ export default function Settings() {
     </div>
   );
 }
+

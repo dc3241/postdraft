@@ -50,12 +50,27 @@ export async function generatePosts(count: number = 5) {
     const allTopics: Array<{ topic: string; source: string; content?: string }> = [];
     
     // Get topics from newsletter emails
-    const emails = await getNewsletterEmails();
-    for (const email of emails) {
-      const topics = await extractTopicsFromNewsletter(email.content, email.source);
-      topics.forEach(topic => {
-        allTopics.push({ topic, source: email.source });
-      });
+    try {
+      const emails = await getNewsletterEmails();
+      for (const email of emails) {
+        try {
+          const topics = await extractTopicsFromNewsletter(email.content, email.source);
+          topics.forEach(topic => {
+            allTopics.push({ topic, source: email.source });
+          });
+        } catch (error) {
+          console.error(`Error extracting topics from newsletter ${email.source}:`, error);
+          // Continue with other emails
+        }
+      }
+    } catch (error: any) {
+      // Handle Gmail connection errors gracefully
+      if (error.message?.includes('Gmail not connected') || error.message?.includes('token')) {
+        console.warn('Gmail not available or token expired. Skipping newsletter emails.');
+      } else {
+        console.error('Error fetching newsletter emails:', error);
+      }
+      // Continue with scraped content even if newsletters fail
     }
 
     // Get topics from scraped content

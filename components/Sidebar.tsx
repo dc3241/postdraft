@@ -2,14 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Library, Settings, Feather, Globe, Mic2 } from 'lucide-react';
+import { LayoutDashboard, Library, SlidersHorizontal, Feather, Globe, Mic2 } from 'lucide-react';
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/library', icon: Library, label: 'Library' },
   { href: '/content-sources', icon: Globe, label: 'Content Sources' },
   { href: '/brand-voices', icon: Mic2, label: 'Brand Voices' },
-  { href: '/settings', icon: Settings, label: 'Settings' },
+  { href: '/preferences', icon: SlidersHorizontal, label: 'Preferences' },
 ];
 
 export function Sidebar() {
