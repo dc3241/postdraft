@@ -8,6 +8,7 @@ import {
 } from "./contentCleaner"
 import { checkRateLimit } from "./rateLimiter"
 import type { ScrapeResult, ScrapedContent, ScrapeError } from "./types"
+import { isRedditUrl, scrapeRedditUrl } from "./reddit-scraper"
 
 /**
  * Generate a random delay between min and max milliseconds
@@ -204,6 +205,15 @@ export async function scrapeUrl(url: string): Promise<ScrapeResult> {
         error: errorMessage,
         timestamp: new Date(),
       } as ScrapeError
+    }
+
+    // Check if this is a Reddit URL and route to Reddit scraper
+    if (isRedditUrl(url)) {
+      console.log(`Detected Reddit URL, using Reddit-specific scraper: ${url}`, {
+        url,
+        timestamp: new Date().toISOString(),
+      })
+      return await scrapeRedditUrl(url)
     }
 
     // Check rate limit
