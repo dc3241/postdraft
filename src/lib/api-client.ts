@@ -196,4 +196,29 @@ export const api = {
       return apiFetch<{ log: unknown }>("/api/auto-generate/latest")
     },
   },
+
+  // Newsletters
+  newsletters: {
+    connectGmail: async () => {
+      const data = await apiFetch<{ authUrl: string }>("/api/newsletters/gmail/connect")
+      return data.authUrl
+    },
+    getSenders: async () => {
+      return apiFetch<{ senders: Array<{ email: string; name: string; count: number; isSelected: boolean }> }>("/api/newsletters/senders")
+    },
+    addSenders: async (senderEmails: string[]) => {
+      return apiFetch<{ success: boolean; senders: unknown[] }>("/api/newsletters/senders", {
+        method: "POST",
+        body: JSON.stringify({ senderEmails }),
+      })
+    },
+    getSources: async () => {
+      return apiFetch<{ sources: unknown[] }>("/api/newsletters/sources")
+    },
+    scrapeNewsletter: async (sourceId: string) => {
+      return apiFetch<{ topicsFound: number; emailsProcessed: number }>(`/api/newsletters/sources/${sourceId}/scrape`, {
+        method: "POST",
+      })
+    },
+  },
 }

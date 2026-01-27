@@ -4,6 +4,9 @@ import {
   scrapeUrl,
   isScrapedContent,
   extractTopicsFromContent,
+  filterDuplicateTopics,
+  generateContentHash,
+  isContentHashDuplicate,
 } from "@/lib/scraping"
 import { getUserPreferences } from "./user-preferences"
 
@@ -245,7 +248,56 @@ export async function triggerScrape(sourceId: string, userId: string) {
       })
     }
 
-    // Step 3: Extract topics from scraped content
+    // Step 3: Check for content hash duplicate (early exit if content unchanged)
+    const contentHash = generateContentHash(
+      scrapeResult.title || "",
+      scrapeResult.excerpt || scrapeResult.content.substring(0, 500),
+      scrapeResult.url
+    )
+
+    const isContentDuplicate = await isContentHashDuplicate(
+      contentHash,
+      sourceId,
+      userId,
+      supabase
+    )
+
+    if (isContentDuplicate) {
+      console.log(`Content hash duplicate detected for source ${sourceId}, skipping topic extraction`, {
+        sourceId,
+        url: source.source_url,
+        contentHash,
+        timestamp: new Date().toISOString(),
+      })
+
+      // Update last_scraped_at even if content is duplicate
+      const { data, error } = await supabase
+        .from("custom_sources")
+        .update({ last_scraped_at: new Date().toISOString() })
+        .eq("id", sourceId)
+        .eq("user_id", userId)
+        .select()
+        .single()
+
+      if (error) {
+        throw new ApiError(
+          "UPDATE_ERROR",
+          "Failed to update last_scraped_at",
+          500,
+          error
+        )
+      }
+
+      return {
+        ...data,
+        scrape_triggered: true,
+        topics_found: 0,
+        scrape_successful: true,
+        skipped_duplicate: true,
+      }
+    }
+
+    // Step 4: Extract topics from scraped content
     const extractedTopics = await extractTopicsFromContent(
       [scrapeResult],
       userIndustry,
@@ -285,8 +337,50 @@ export async function triggerScrape(sourceId: string, userId: string) {
       }
     }
 
-    // Step 4: Store topics in trending_topics table
-    const topicsToInsert = extractedTopics.map((topic) => ({
+    // Step 5: Filter out duplicate topics (check against database)
+    const uniqueTopics = await filterDuplicateTopics(
+      extractedTopics,
+      userId,
+      supabase
+    )
+
+    if (uniqueTopics.length === 0) {
+      console.log(`All topics are duplicates for source ${sourceId}, skipping insert`, {
+        sourceId,
+        url: source.source_url,
+        originalCount: extractedTopics.length,
+        timestamp: new Date().toISOString(),
+      })
+
+      // Update last_scraped_at even if all topics are duplicates
+      const { data, error } = await supabase
+        .from("custom_sources")
+        .update({ last_scraped_at: new Date().toISOString() })
+        .eq("id", sourceId)
+        .eq("user_id", userId)
+        .select()
+        .single()
+
+      if (error) {
+        throw new ApiError(
+          "UPDATE_ERROR",
+          "Failed to update last_scraped_at",
+          500,
+          error
+        )
+      }
+
+      return {
+        ...data,
+        scrape_triggered: true,
+        topics_found: 0,
+        scrape_successful: true,
+        skipped_duplicates: true,
+      }
+    }
+
+    // Step 6: Store topics in trending_topics table
+    const topicsToInsert = uniqueTopics.map((topic) => ({
       user_id: userId,
       source_id: sourceId,
       source_type: "custom_link" as const,
@@ -305,6 +399,7 @@ export async function triggerScrape(sourceId: string, userId: string) {
         openGraphTitle: scrapeResult.metadata.openGraphTitle,
         openGraphDescription: scrapeResult.metadata.openGraphDescription,
         openGraphImage: scrapeResult.metadata.openGraphImage,
+        content_hash: contentHash,
       },
     }))
 
@@ -328,7 +423,7 @@ export async function triggerScrape(sourceId: string, userId: string) {
       )
     }
 
-    // Step 5: Update last_scraped_at on custom_sources
+    // Step 7: Update last_scraped_at on custom_sources
     const { data: updatedSource, error: updateError } = await supabase
       .from("custom_sources")
       .update({ last_scraped_at: new Date().toISOString() })
