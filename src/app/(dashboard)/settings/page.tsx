@@ -78,7 +78,7 @@ export default function SettingsPage() {
             </div>
           ) : (
             <>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center gap-8">
                 <div>
                   <p className="font-semibold text-stone-900">Current Plan</p>
                   <Badge 
@@ -88,7 +88,7 @@ export default function SettingsPage() {
                     {subscription?.plan_tier || "free"}
                   </Badge>
                 </div>
-                <div className="text-right">
+                <div>
                   <p className="text-sm text-stone-600">Status</p>
                   <Badge 
                     variant="secondary" 

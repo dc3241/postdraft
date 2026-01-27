@@ -133,7 +133,13 @@ export default function SourcesPage() {
       const sourcesData = await api.newsletters.getSources()
       setNewsletterSources(sourcesData.sources as NewsletterSource[])
     } catch (error) {
-      setGmailConnected(false)
+      console.error('Failed to check Gmail connection or load newsletter sources:', error)
+      // Only set gmailConnected to false if getSenders fails
+      // If getSenders succeeds but getSources fails, keep gmailConnected true
+      // but log the error so we can debug
+      if (error instanceof Error && error.message.includes('senders')) {
+        setGmailConnected(false)
+      }
       setNewsletterSources([])
     }
   }

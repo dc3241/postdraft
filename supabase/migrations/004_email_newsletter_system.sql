@@ -52,7 +52,8 @@ CREATE TABLE IF NOT EXISTS public.newsletter_sources (
     is_active boolean DEFAULT true NOT NULL,
     last_scraped_at timestamptz,
     created_at timestamptz DEFAULT now() NOT NULL,
-    updated_at timestamptz DEFAULT now() NOT NULL
+    updated_at timestamptz DEFAULT now() NOT NULL,
+    CONSTRAINT newsletter_sources_user_sender_unique UNIQUE (user_id, sender_id)
 );
 
 -- ============================================================================

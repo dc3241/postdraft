@@ -26,7 +26,7 @@ import { ChipInput } from "@/components/onboarding/chip-input"
 import { PlatformPriority, type Platform } from "@/components/onboarding/platform-priority"
 import { PageHeader } from "@/components/shared/page-header"
 import { toast } from "sonner"
-import { Loader2, Trash2, Plus } from "lucide-react"
+import { Loader2, Trash2, Plus, ChevronDown, ChevronUp } from "lucide-react"
 import { api } from "@/lib/api-client"
 import type {
   UserPreferences,
@@ -393,26 +393,11 @@ export default function SpecificationsPage() {
                       ) : (
                         <div className="space-y-3">
                           {platformSamples.map((sample) => (
-                            <div
+                            <VoiceSampleRow
                               key={sample.id}
-                              className="p-3 bg-stone-50 rounded-md space-y-2"
-                            >
-                              <p className="text-sm whitespace-pre-wrap">{sample.sample_text}</p>
-                              {sample.performance_notes && (
-                                <p className="text-xs text-stone-500">
-                                  <strong>Performance:</strong> {sample.performance_notes}
-                                </p>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteVoiceSample(sample.id)}
-                                className="text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
-                              </Button>
-                            </div>
+                              sample={sample}
+                              onDelete={() => handleDeleteVoiceSample(sample.id)}
+                            />
                           ))}
                         </div>
                       )}
@@ -475,6 +460,60 @@ export default function SpecificationsPage() {
           )}
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+function VoiceSampleRow({
+  sample,
+  onDelete,
+}: {
+  sample: BrandVoiceSample
+  onDelete: () => void
+}) {
+  const [isExpanded, setIsExpanded] = useState(false)
+
+  return (
+    <div className="p-3 bg-stone-50 rounded-md space-y-2">
+      <p
+        className={`text-sm whitespace-pre-wrap ${!isExpanded ? "line-clamp-3" : ""}`}
+      >
+        {sample.sample_text}
+      </p>
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setIsExpanded((prev) => !prev)}
+          className="text-stone-600 hover:text-stone-900"
+        >
+          {isExpanded ? (
+            <>
+              <ChevronUp className="h-4 w-4 mr-1" />
+              Show less
+            </>
+          ) : (
+            <>
+              <ChevronDown className="h-4 w-4 mr-1" />
+              Show more
+            </>
+          )}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onDelete}
+          className="text-destructive hover:text-destructive"
+        >
+          <Trash2 className="h-4 w-4 mr-2" />
+          Delete
+        </Button>
+      </div>
+      {sample.performance_notes && (
+        <p className="text-xs text-stone-500">
+          <strong>Performance:</strong> {sample.performance_notes}
+        </p>
+      )}
     </div>
   )
 }

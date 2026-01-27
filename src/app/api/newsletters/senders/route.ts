@@ -123,8 +123,9 @@ export const POST = createRouteHandler(
     if (error) throw error
 
     // Create newsletter sources for each sender
+    const sourceErrors: string[] = []
     for (const sender of insertedSenders || []) {
-      await supabase
+      const { error: sourceError } = await supabase
         .from('newsletter_sources')
         .upsert({
           user_id: auth.userId,
@@ -135,6 +136,16 @@ export const POST = createRouteHandler(
         }, {
           onConflict: 'user_id,sender_id',
         })
+      
+      if (sourceError) {
+        console.error(`Failed to create newsletter source for sender ${sender.id}:`, sourceError)
+        sourceErrors.push(`Failed to create source for ${sender.sender_email}: ${sourceError.message}`)
+      }
+    }
+
+    if (sourceErrors.length > 0) {
+      console.error('Some newsletter sources failed to create:', sourceErrors)
+      // Still return success since senders were added, but log the errors
     }
 
     return NextResponse.json({ success: true, senders: insertedSenders })
