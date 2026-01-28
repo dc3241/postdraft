@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { ApiError } from '@/lib/api/auth'
 import { getGmailClient } from './gmail-oauth'
 import { parseEmailContent } from '@/lib/scraping/email-parser'
-import { scrapeUrl, isScrapedContent, filterDuplicateTopics, generateContentHash } from '@/lib/scraping'
+import { scrapeUrl, isScrapedContent, filterDuplicateTopics, generateContentHash, isContentHashDuplicate } from '@/lib/scraping'
 import { extractTopicsFromContent } from '@/lib/scraping/topicExtractor'
 import { getUserPreferences } from './user-preferences'
 
@@ -11,7 +11,7 @@ import { getUserPreferences } from './user-preferences'
  */
 export async function fetchNewsletterEmails(
   userId: string,
-  daysBack: number = 7
+  daysBack: number = 2
 ): Promise<Array<{ subject: string; from: string; date: Date; body: string }>> {
   const supabase = await createClient()
   const gmail = await getGmailClient(userId)
@@ -112,9 +112,28 @@ export async function processNewsletterEmails(userId: string, newsletterSourceId
   }
 
   // Fetch emails
-  const emails = await fetchNewsletterEmails(userId, 7)
+  const emails = await fetchNewsletterEmails(userId, 2)
 
-  if (emails.length === 0) {
+  // Filter to only emails sent within the last 48 hours
+  const fortyEightHoursAgo = new Date()
+  fortyEightHoursAgo.setHours(fortyEightHoursAgo.getHours() - 48)
+  const recentEmails = emails.filter(email => email.date >= fortyEightHoursAgo)
+
+  // Filter out emails with duplicate content hashes
+  const uniqueEmails: typeof emails = []
+  for (const email of recentEmails) {
+    // Generate content hash for this email
+    const contentHash = generateContentHash(email.subject, email.body.substring(0, 500), '')
+    
+    // Check if this content hash already exists
+    const isDuplicate = await isContentHashDuplicate(contentHash, newsletterSourceId, userId, supabase)
+    
+    if (!isDuplicate) {
+      uniqueEmails.push(email)
+    }
+  }
+
+  if (uniqueEmails.length === 0) {
     // Update last_scraped_at even if no emails found
     await supabase
       .from('newsletter_sources')
@@ -125,7 +144,7 @@ export async function processNewsletterEmails(userId: string, newsletterSourceId
   }
 
   // Parse emails into ScrapedContent format
-  const scrapedContents = emails.map(email =>
+  const scrapedContents = uniqueEmails.map(email =>
     parseEmailContent(email.body, email.subject, email.from, email.date)
   )
 
@@ -175,7 +194,7 @@ export async function processNewsletterEmails(userId: string, newsletterSourceId
       .update({ last_scraped_at: new Date().toISOString() })
       .eq('id', newsletterSourceId)
 
-    return { topicsFound: 0, emailsProcessed: emails.length }
+    return { topicsFound: 0, emailsProcessed: uniqueEmails.length }
   }
 
   // Filter out duplicate topics (check against database)
@@ -194,7 +213,7 @@ export async function processNewsletterEmails(userId: string, newsletterSourceId
       .update({ last_scraped_at: new Date().toISOString() })
       .eq('id', newsletterSourceId)
 
-    return { topicsFound: 0, emailsProcessed: emails.length, skippedDuplicates: true }
+    return { topicsFound: 0, emailsProcessed: uniqueEmails.length, skippedDuplicates: true }
   }
 
   // Generate content hash from first email (for tracking)
@@ -241,7 +260,7 @@ export async function processNewsletterEmails(userId: string, newsletterSourceId
       metadata: {
         category: topic.category,
         relevance: topic.relevance,
-        emailsProcessed: emails.length,
+        emailsProcessed: uniqueEmails.length,
         content_hash: contentHash,
       },
     }
@@ -261,5 +280,5 @@ export async function processNewsletterEmails(userId: string, newsletterSourceId
     .update({ last_scraped_at: new Date().toISOString() })
     .eq('id', newsletterSourceId)
 
-  return { topicsFound: uniqueTopics.length, emailsProcessed: emails.length }
+  return { topicsFound: uniqueTopics.length, emailsProcessed: uniqueEmails.length }
 }
