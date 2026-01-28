@@ -207,15 +207,12 @@ export default function SourcesPage() {
             Email Newsletters
           </CardTitle>
           <CardDescription className="text-stone-600">
-            Connect your Gmail to scrape newsletters for trending topics
+            Connect your Gmail account to automatically discover and scrape newsletters for trending topics.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {!gmailConnected ? (
             <div className="space-y-3">
-              <p className="text-sm text-stone-600">
-                Connect your Gmail account to automatically discover and scrape newsletters.
-              </p>
               <Button
                 onClick={handleConnectGmail}
                 className="bg-gradient-to-r from-orange-500 to-purple-600 text-white"

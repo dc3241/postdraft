@@ -3,7 +3,7 @@ import { ApiError } from "@/lib/api/auth"
 
 /**
  * Discover trending topics for a user based on their selected niches
- * Includes both user-specific topics (from custom sources) and global topics
+ * Only shows topics that match the user's selected niches (regardless of source)
  */
 export async function discoverTrends(userId: string, limit: number = 20) {
   const supabase = await createClient()
@@ -17,6 +17,11 @@ export async function discoverTrends(userId: string, limit: number = 20) {
 
   const selectedNiches = prefs?.selected_niches || []
 
+  // If user has no niches selected, return empty array
+  if (selectedNiches.length === 0) {
+    return []
+  }
+
   // Build query to include:
   // 1. User-specific topics (user_id = userId)
   // 2. Global topics (user_id IS NULL)
@@ -25,11 +30,8 @@ export async function discoverTrends(userId: string, limit: number = 20) {
     .select("*")
     .or(`user_id.eq.${userId},user_id.is.null`)
 
-  // Filter by selected niches if user has any
-  if (selectedNiches.length > 0) {
-    // Include topics that match user's niches OR have no niche
-    query = query.or(`niche_id.in.(${selectedNiches.join(",")}),niche_id.is.null`)
-  }
+  // Filter by selected niches - only show topics that match user's niches
+  query = query.in("niche_id", selectedNiches)
 
   // Filter out expired topics
   const now = new Date().toISOString()

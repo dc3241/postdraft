@@ -206,23 +206,46 @@ export async function processNewsletterEmails(userId: string, newsletterSourceId
       )
     : null
 
-  // Store topics in trending_topics
-  const topicsToInsert = uniqueTopics.map(topic => ({
-    user_id: userId,
-    newsletter_source_id: newsletterSourceId,
-    source_type: 'newsletter' as const,
-    title: topic.title,
-    description: topic.description,
-    content_snippet: scrapedContents[0]?.excerpt || '',
-    source_url: null, // Emails don't have URLs
-    trend_score: topic.trendingScore,
-    metadata: {
-      category: topic.category,
-      relevance: topic.relevance,
-      emailsProcessed: emails.length,
-      content_hash: contentHash,
-    },
-  }))
+  // Get user's selected niches to assign to topics
+  let selectedNiches: string[] = []
+  try {
+    const { data: prefs } = await supabase
+      .from("user_preferences")
+      .select("selected_niches")
+      .eq("user_id", userId)
+      .single()
+    
+    selectedNiches = prefs?.selected_niches || []
+  } catch (error) {
+    console.warn("Could not fetch user niches for topic assignment", {
+      userId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+
+  // Store topics in trending_topics with niche_id
+  const topicsToInsert = uniqueTopics.map(topic => {
+    // Assign niche_id: use first selected niche, or null if none selected
+    const nicheId = selectedNiches.length > 0 ? selectedNiches[0] : null
+    
+    return {
+      user_id: userId,
+      newsletter_source_id: newsletterSourceId,
+      source_type: 'newsletter' as const,
+      niche_id: nicheId,
+      title: topic.title,
+      description: topic.description,
+      content_snippet: scrapedContents[0]?.excerpt || '',
+      source_url: null, // Emails don't have URLs
+      trend_score: topic.trendingScore,
+      metadata: {
+        category: topic.category,
+        relevance: topic.relevance,
+        emailsProcessed: emails.length,
+        content_hash: contentHash,
+      },
+    }
+  })
 
   const { error: insertError } = await supabase
     .from('trending_topics')

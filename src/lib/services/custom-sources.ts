@@ -379,29 +379,52 @@ export async function triggerScrape(sourceId: string, userId: string) {
       }
     }
 
-    // Step 6: Store topics in trending_topics table
-    const topicsToInsert = uniqueTopics.map((topic) => ({
-      user_id: userId,
-      source_id: sourceId,
-      source_type: "custom_link" as const,
-      title: topic.title,
-      description: topic.description,
-      content_snippet: scrapeResult.excerpt || scrapeResult.content.substring(0, 500),
-      source_url: scrapeResult.url,
-      trend_score: topic.trendingScore,
-      metadata: {
-        category: topic.category,
-        relevance: topic.relevance,
-        scrapedAt: scrapeResult.scrapedAt.toISOString(),
-        scrapedTitle: scrapeResult.title,
-        scrapedAuthor: scrapeResult.author,
-        scrapedPublishDate: scrapeResult.publishDate?.toISOString(),
-        openGraphTitle: scrapeResult.metadata.openGraphTitle,
-        openGraphDescription: scrapeResult.metadata.openGraphDescription,
-        openGraphImage: scrapeResult.metadata.openGraphImage,
-        content_hash: contentHash,
-      },
-    }))
+    // Step 6: Get user's selected niches to assign to topics
+    let selectedNiches: string[] = []
+    try {
+      const { data: prefs } = await supabase
+        .from("user_preferences")
+        .select("selected_niches")
+        .eq("user_id", userId)
+        .single()
+      
+      selectedNiches = prefs?.selected_niches || []
+    } catch (error) {
+      console.warn("Could not fetch user niches for topic assignment", {
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+
+    // Step 7: Store topics in trending_topics table with niche_id
+    const topicsToInsert = uniqueTopics.map((topic) => {
+      // Assign niche_id: use first selected niche, or null if none selected
+      const nicheId = selectedNiches.length > 0 ? selectedNiches[0] : null
+      
+      return {
+        user_id: userId,
+        source_id: sourceId,
+        source_type: "custom_link" as const,
+        niche_id: nicheId,
+        title: topic.title,
+        description: topic.description,
+        content_snippet: scrapeResult.excerpt || scrapeResult.content.substring(0, 500),
+        source_url: scrapeResult.url,
+        trend_score: topic.trendingScore,
+        metadata: {
+          category: topic.category,
+          relevance: topic.relevance,
+          scrapedAt: scrapeResult.scrapedAt.toISOString(),
+          scrapedTitle: scrapeResult.title,
+          scrapedAuthor: scrapeResult.author,
+          scrapedPublishDate: scrapeResult.publishDate?.toISOString(),
+          openGraphTitle: scrapeResult.metadata.openGraphTitle,
+          openGraphDescription: scrapeResult.metadata.openGraphDescription,
+          openGraphImage: scrapeResult.metadata.openGraphImage,
+          content_hash: contentHash,
+        },
+      }
+    })
 
     const { data: insertedTopics, error: insertError } = await supabase
       .from("trending_topics")
@@ -423,7 +446,7 @@ export async function triggerScrape(sourceId: string, userId: string) {
       )
     }
 
-    // Step 7: Update last_scraped_at on custom_sources
+    // Step 8: Update last_scraped_at on custom_sources
     const { data: updatedSource, error: updateError } = await supabase
       .from("custom_sources")
       .update({ last_scraped_at: new Date().toISOString() })
