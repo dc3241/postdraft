@@ -9,6 +9,7 @@ import {
 import { checkRateLimit } from "./rateLimiter"
 import type { ScrapeResult, ScrapedContent, ScrapeError } from "./types"
 import { isRedditUrl, scrapeRedditUrl } from "./reddit-scraper"
+import { isRssFeedUrl, scrapeRssFeed } from "./rss-scraper"
 
 /**
  * Generate a random delay between min and max milliseconds

@@ -17,6 +17,8 @@ export interface ScrapedContent {
     openGraphDescription?: string
     openGraphImage?: string
     metaDescription?: string
+    feedTitle?: string | null
+    feedUrl?: string
   }
   scrapedAt: Date
   contentLength: number

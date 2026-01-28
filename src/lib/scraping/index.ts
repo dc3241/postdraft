@@ -26,6 +26,9 @@ export {
 // Scraper
 export { scrapeUrl, batchScrape } from "./scraper"
 
+// RSS Scraper
+export { isRssFeedUrl, scrapeRssFeed } from "./rss-scraper"
+
 // Topic Extractor
 export { extractTopicsFromContent } from "./topicExtractor"
 

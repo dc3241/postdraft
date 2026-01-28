@@ -7,6 +7,8 @@ import {
   filterDuplicateTopics,
   generateContentHash,
   isContentHashDuplicate,
+  isRssFeedUrl,
+  scrapeRssFeed,
 } from "@/lib/scraping"
 import { getUserPreferences } from "./user-preferences"
 
@@ -179,6 +181,258 @@ export async function deleteCustomSource(sourceId: string, userId: string) {
 }
 
 /**
+ * Handle RSS feed scraping (multiple items)
+ */
+async function handleRssFeedScrape(
+  sourceId: string,
+  userId: string,
+  feedUrl: string
+) {
+  const supabase = await createClient()
+  console.log(`Scraping RSS feed: ${feedUrl}`, {
+    sourceId,
+    userId,
+    timestamp: new Date().toISOString(),
+  })
+
+  // Scrape RSS feed
+  const rssResult = await scrapeRssFeed(feedUrl)
+
+  // Check if scraping failed
+  if (!Array.isArray(rssResult)) {
+    const errorMessage = rssResult.error || "Unknown RSS scraping error"
+    console.error(`RSS scraping failed for source ${sourceId}`, {
+      sourceId,
+      url: feedUrl,
+      error: errorMessage,
+      timestamp: new Date().toISOString(),
+    })
+
+    // Update last_scraped_at even on failure
+    await supabase
+      .from("custom_sources")
+      .update({ last_scraped_at: new Date().toISOString() })
+      .eq("id", sourceId)
+      .eq("user_id", userId)
+
+    throw new ApiError(
+      "SCRAPE_FAILED",
+      `Failed to scrape RSS feed: ${errorMessage}`,
+      500
+    )
+  }
+
+  const feedItems = rssResult
+  console.log(`RSS feed returned ${feedItems.length} items`, {
+    sourceId,
+    itemsCount: feedItems.length,
+    timestamp: new Date().toISOString(),
+  })
+
+  if (feedItems.length === 0) {
+    // Update last_scraped_at even if no items found
+    await supabase
+      .from("custom_sources")
+      .update({ last_scraped_at: new Date().toISOString() })
+      .eq("id", sourceId)
+      .eq("user_id", userId)
+
+    return {
+      scrape_triggered: true,
+      topics_found: 0,
+      scrape_successful: true,
+      items_processed: 0,
+    }
+  }
+
+  // Get user preferences for context
+  let userIndustry: string | undefined
+  let userInterests: string[] | undefined
+
+  try {
+    const { preferences } = await getUserPreferences(userId)
+    if (preferences) {
+      userIndustry = preferences.industry || undefined
+      userInterests = preferences.content_topics.length > 0 ? preferences.content_topics : undefined
+    }
+  } catch (error) {
+    console.warn("Could not fetch user preferences for RSS topic extraction", {
+      userId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+
+  // Get user's selected niches
+  let selectedNiches: string[] = []
+  try {
+    const { data: prefs } = await supabase
+      .from("user_preferences")
+      .select("selected_niches")
+      .eq("user_id", userId)
+      .single()
+    
+    selectedNiches = prefs?.selected_niches || []
+  } catch (error) {
+    console.warn("Could not fetch user niches for RSS topic assignment", {
+      userId,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+
+  // Process each RSS item
+  const allTopicsToInsert: any[] = []
+  let itemsProcessed = 0
+  let itemsSkipped = 0
+
+  for (const item of feedItems) {
+    // Check for content hash duplicate for this item
+    const contentHash = generateContentHash(
+      item.title || "",
+      item.excerpt || item.content.substring(0, 500),
+      item.url
+    )
+
+    const isContentDuplicate = await isContentHashDuplicate(
+      contentHash,
+      sourceId,
+      userId,
+      supabase
+    )
+
+    if (isContentDuplicate) {
+      itemsSkipped++
+      continue
+    }
+
+    // Extract topics from this item
+    const extractedTopics = await extractTopicsFromContent(
+      [item],
+      userIndustry,
+      userInterests
+    )
+
+    if (extractedTopics.length === 0) {
+      itemsSkipped++
+      continue
+    }
+
+    // Filter out duplicate topics
+    const uniqueTopics = await filterDuplicateTopics(
+      extractedTopics,
+      userId,
+      supabase
+    )
+
+    if (uniqueTopics.length === 0) {
+      itemsSkipped++
+      continue
+    }
+
+    // Add topics to insert list
+    const nicheId = selectedNiches.length > 0 ? selectedNiches[0] : null
+    
+    for (const topic of uniqueTopics) {
+      allTopicsToInsert.push({
+        user_id: userId,
+        source_id: sourceId,
+        source_type: "custom_link" as const,
+        niche_id: nicheId,
+        title: topic.title,
+        description: topic.description,
+        content_snippet: item.excerpt || item.content.substring(0, 500),
+        source_url: item.url,
+        trend_score: topic.trendingScore,
+        metadata: {
+          category: topic.category,
+          relevance: topic.relevance,
+          scrapedAt: item.scrapedAt.toISOString(),
+          scrapedTitle: item.title,
+          scrapedAuthor: item.author,
+          scrapedPublishDate: item.publishDate?.toISOString(),
+          openGraphTitle: item.metadata.openGraphTitle,
+          openGraphDescription: item.metadata.openGraphDescription,
+          openGraphImage: item.metadata.openGraphImage,
+          feedTitle: item.metadata.feedTitle,
+          feedUrl: item.metadata.feedUrl,
+          content_hash: contentHash,
+        },
+      })
+    }
+
+    itemsProcessed++
+  }
+
+  if (allTopicsToInsert.length === 0) {
+    console.log(`No new topics from RSS feed ${sourceId}`, {
+      sourceId,
+      itemsCount: feedItems.length,
+      itemsSkipped,
+      timestamp: new Date().toISOString(),
+    })
+
+    // Update last_scraped_at
+    await supabase
+      .from("custom_sources")
+      .update({ last_scraped_at: new Date().toISOString() })
+      .eq("id", sourceId)
+      .eq("user_id", userId)
+
+    return {
+      scrape_triggered: true,
+      topics_found: 0,
+      scrape_successful: true,
+      items_processed: itemsProcessed,
+      items_skipped: itemsSkipped,
+    }
+  }
+
+  // Insert all topics
+  const { data: insertedTopics, error: insertError } = await supabase
+    .from("trending_topics")
+    .insert(allTopicsToInsert)
+    .select()
+
+  if (insertError) {
+    console.error(`Failed to insert RSS topics for source ${sourceId}`, {
+      sourceId,
+      error: insertError.message,
+      topicsCount: allTopicsToInsert.length,
+      timestamp: new Date().toISOString(),
+    })
+    throw new ApiError(
+      "INSERT_ERROR",
+      "Failed to store extracted topics from RSS feed",
+      500,
+      insertError
+    )
+  }
+
+  // Update last_scraped_at
+  await supabase
+    .from("custom_sources")
+    .update({ last_scraped_at: new Date().toISOString() })
+    .eq("id", sourceId)
+    .eq("user_id", userId)
+
+  console.log(`Successfully processed RSS feed ${sourceId}`, {
+    sourceId,
+    itemsCount: feedItems.length,
+    itemsProcessed,
+    itemsSkipped,
+    topicsCount: insertedTopics.length,
+    timestamp: new Date().toISOString(),
+  })
+
+  return {
+    scrape_triggered: true,
+    topics_found: insertedTopics.length,
+    scrape_successful: true,
+    items_processed: itemsProcessed,
+    items_skipped: itemsSkipped,
+  }
+}
+
+/**
  * Trigger scrape for a custom source
  * Scrapes the URL, extracts topics using Claude, and stores them in trending_topics
  */
@@ -199,11 +453,20 @@ export async function triggerScrape(sourceId: string, userId: string) {
   console.log(`Starting scrape for source: ${source.source_name} (${source.source_url})`, {
     sourceId,
     userId,
+    sourceType: source.source_type,
     timestamp: new Date().toISOString(),
   })
 
   try {
-    // Step 1: Scrape the URL
+    // Step 1: Check if this is an RSS feed
+    const isRss = source.source_type === "rss" || isRssFeedUrl(source.source_url)
+    
+    if (isRss) {
+      // Handle RSS feed (returns multiple items)
+      return await handleRssFeedScrape(sourceId, userId, source.source_url, supabase)
+    }
+
+    // Step 1: Scrape the URL (regular HTML page)
     const scrapeResult = await scrapeUrl(source.source_url)
 
     if (!isScrapedContent(scrapeResult)) {
