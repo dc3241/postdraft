@@ -426,3 +426,5 @@ export interface Database {
     }
   }
 }
+
+export type GeneratedPost = Database["public"]["Tables"]["generated_posts"]["Row"]

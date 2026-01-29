@@ -2,6 +2,8 @@
  * Client-side API utilities for making requests to our API endpoints
  */
 
+import type { GeneratedPost } from "@/types/database"
+
 export interface ApiError {
   error: {
     code: string
@@ -105,7 +107,7 @@ export const api = {
   // Posts
   posts: {
     generate: async (topicId: string | null, platform: string, customPrompt?: string) => {
-      return apiFetch("/api/posts/generate", {
+      return apiFetch<GeneratedPost>("/api/posts/generate", {
         method: "POST",
         body: JSON.stringify({ topicId, platform, customPrompt }),
       })
