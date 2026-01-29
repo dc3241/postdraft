@@ -93,7 +93,7 @@ export default function OnboardingVoicePage() {
               <strong>Samples added:</strong> {samplesAdded}
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
-              Add more samples or click "Analyze Voice" when you're ready.
+              Add more samples or click &quot;Analyze Voice&quot; when you&apos;re ready.
             </p>
           </div>
 

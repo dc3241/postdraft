@@ -87,7 +87,7 @@ export default function OnboardingNichesPage() {
         <CardHeader>
           <CardTitle className="text-3xl">Select Your Niches</CardTitle>
           <CardDescription>
-            Choose the content niches you're interested in. You can select multiple.
+            Choose the content niches you&apos;re interested in. You can select multiple.
           </CardDescription>
         </CardHeader>
         <CardContent>
