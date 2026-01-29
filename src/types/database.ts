@@ -236,8 +236,10 @@ export interface Database {
       trending_topics: {
         Row: {
           id: string
+          user_id: string | null
           niche_id: string | null
           source_id: string | null
+          newsletter_source_id: string | null
           source_type: SourceType
           title: string
           description: string | null
@@ -251,8 +253,10 @@ export interface Database {
         }
         Insert: {
           id?: string
+          user_id?: string | null
           niche_id?: string | null
           source_id?: string | null
+          newsletter_source_id?: string | null
           source_type: SourceType
           title: string
           description?: string | null
@@ -266,8 +270,10 @@ export interface Database {
         }
         Update: {
           id?: string
+          user_id?: string | null
           niche_id?: string | null
           source_id?: string | null
+          newsletter_source_id?: string | null
           source_type?: SourceType
           title?: string
           description?: string | null
@@ -278,6 +284,41 @@ export interface Database {
           expires_at?: string | null
           metadata?: Json
           created_at?: string
+        }
+      }
+      newsletter_sources: {
+        Row: {
+          id: string
+          user_id: string
+          sender_id: string
+          source_name: string | null
+          source_type: string
+          is_active: boolean
+          last_scraped_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          sender_id: string
+          source_name?: string | null
+          source_type?: string
+          is_active?: boolean
+          last_scraped_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          sender_id?: string
+          source_name?: string | null
+          source_type?: string
+          is_active?: boolean
+          last_scraped_at?: string | null
+          created_at?: string
+          updated_at?: string
         }
       }
       generated_posts: {

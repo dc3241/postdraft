@@ -49,10 +49,11 @@ export async function isDuplicateTopic(
     return false
   }
 
-  // Check similarity against existing topics
+  // Check similarity against existing topics (type assertion: Supabase select("title") returns title rows)
   const normalizedNewTitle = topic.title.toLowerCase().trim()
+  const topicsWithTitle = existingTopics as { title: string }[]
 
-  for (const existing of existingTopics) {
+  for (const existing of topicsWithTitle) {
     if (!existing.title) continue
 
     const normalizedExistingTitle = existing.title.toLowerCase().trim()
@@ -133,9 +134,10 @@ export async function isContentHashDuplicate(
     return false
   }
 
-  // Check metadata for content_hash
-  for (const topic of existingTopics) {
-    const metadata = topic.metadata as any
+  // Check metadata for content_hash (type assertion: Supabase select("metadata") returns metadata rows)
+  const topicsWithMetadata = existingTopics as { metadata: Record<string, unknown> | null }[]
+  for (const topic of topicsWithMetadata) {
+    const metadata = topic.metadata as Record<string, unknown> | null
     if (metadata?.content_hash === contentHash) {
       return true
     }

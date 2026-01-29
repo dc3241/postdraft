@@ -15,10 +15,11 @@ export interface ScrapedContent {
   metadata: {
     openGraphTitle?: string
     openGraphDescription?: string
-    openGraphImage?: string
+    openGraphImage?: string | null
     metaDescription?: string
     feedTitle?: string | null
     feedUrl?: string
+    emailLinks?: string[]
   }
   scrapedAt: Date
   contentLength: number

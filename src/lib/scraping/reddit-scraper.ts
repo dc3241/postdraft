@@ -314,7 +314,7 @@ async function scrapeSingleRedditPost(postUrl: string): Promise<ScrapedContent |
 
   const data: RedditAPIResponse = await response.json()
 
-  if (!data || !Array.isArray(data) || data.length === 0) {
+  if (!data || !Array.isArray(data) || data.length < 2) {
     throw new Error("Invalid Reddit API response format")
   }
 

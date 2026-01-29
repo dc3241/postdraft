@@ -13,6 +13,25 @@ interface RouteOptions {
   methods?: string[]
 }
 
+/** Next.js App Router context: params is a Promise for dynamic routes */
+type NextRouteContext = {
+  params?: Promise<Record<string, string | string[] | undefined>>
+}
+
+/**
+ * Normalize Next.js params (may include string[]) to Record<string, string | undefined>
+ */
+function normalizeParams(
+  resolved: Record<string, string | string[] | undefined> | undefined
+): Record<string, string | undefined> | undefined {
+  if (!resolved) return undefined
+  const params: Record<string, string | undefined> = {}
+  for (const [key, value] of Object.entries(resolved)) {
+    params[key] = Array.isArray(value) ? value[0] : value
+  }
+  return params
+}
+
 /**
  * Wrapper for API route handlers that provides:
  * - Error handling
@@ -35,7 +54,7 @@ export function createRouteHandler<T = void>(
 
   return async (
     request: NextRequest,
-    context?: { params?: Record<string, string | undefined> }
+    context?: NextRouteContext
   ): Promise<NextResponse> => {
     try {
       // Validate HTTP method
@@ -62,10 +81,14 @@ export function createRouteHandler<T = void>(
         auth = await requireUser()
       }
 
+      // Resolve params (Next.js passes params as Promise for App Router)
+      const resolvedParams = context?.params != null ? await context.params : undefined
+      const params = normalizeParams(resolvedParams)
+
       // Call the handler
       return await handler(request, {
         auth,
-        params: context?.params,
+        params,
       })
     } catch (error) {
       return handleApiError(error)

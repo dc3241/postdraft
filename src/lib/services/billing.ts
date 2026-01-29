@@ -1,11 +1,12 @@
 import { createClient } from "@/lib/supabase/server"
 import { createServiceRoleClient } from "@/lib/supabase/service-role"
 import { ApiError } from "@/lib/api/auth"
+import type { Database } from "@/types/database"
 import Stripe from "stripe"
 
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: "2024-12-18.acacia",
+      apiVersion: "2026-01-28.clover",
     })
   : null
 
@@ -89,13 +90,11 @@ export async function createCheckoutSession(
 
     // Save customer ID to subscription
     const serviceClient = createServiceRoleClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase client infers never for this table; payload matches Insert type
     await serviceClient
       .from("subscriptions")
       .upsert(
-        {
-          user_id: userId,
-          stripe_customer_id: customerId,
-        },
+        { user_id: userId, stripe_customer_id: customerId } as any,
         { onConflict: "user_id" }
       )
   }
@@ -178,8 +177,8 @@ export async function handleStripeWebhook(event: Stripe.Event) {
   switch (event.type) {
     case "customer.subscription.created":
     case "customer.subscription.updated": {
-      const subscription = event.data.object as Stripe.Subscription
-      const customerId = subscription.customer as string
+      const stripeSubscription = event.data.object as Stripe.Subscription
+      const customerId = stripeSubscription.customer as string
 
       // Find user by customer ID
       const { data: sub } = await serviceClient
@@ -188,45 +187,43 @@ export async function handleStripeWebhook(event: Stripe.Event) {
         .eq("stripe_customer_id", customerId)
         .single()
 
-      if (!sub) {
+      const subRow = sub as { user_id: string } | null
+      if (!subRow) {
         throw new ApiError("NOT_FOUND", "Subscription not found", 404)
       }
 
       // Determine plan tier from price ID (you'll need to map these)
-      const priceId = subscription.items.data[0]?.price.id
+      const priceId = stripeSubscription.items.data[0]?.price.id
       const planTier = mapPriceIdToPlanTier(priceId || "")
 
-      // Update subscription
-      await serviceClient
-        .from("subscriptions")
+      // Update subscription (Stripe.Subscription has current_period_start/end as number)
+      const stripeSub = stripeSubscription as Stripe.Subscription & {
+        current_period_start: number
+        current_period_end: number
+      }
+      const subsTable = serviceClient.from("subscriptions") as any
+      await subsTable
         .update({
-          stripe_subscription_id: subscription.id,
+          stripe_subscription_id: stripeSub.id,
           plan_tier: planTier,
-          status: subscription.status as any,
-          current_period_start: new Date(
-            subscription.current_period_start * 1000
-          ).toISOString(),
-          current_period_end: new Date(
-            subscription.current_period_end * 1000
-          ).toISOString(),
-          cancel_at_period_end: subscription.cancel_at_period_end,
+          status: stripeSub.status,
+          current_period_start: new Date(stripeSub.current_period_start * 1000).toISOString(),
+          current_period_end: new Date(stripeSub.current_period_end * 1000).toISOString(),
+          cancel_at_period_end: stripeSub.cancel_at_period_end,
         })
-        .eq("user_id", sub.user_id)
+        .eq("user_id", subRow.user_id)
 
       break
     }
 
     case "customer.subscription.deleted": {
-      const subscription = event.data.object as Stripe.Subscription
-      const customerId = subscription.customer as string
+      const stripeSubscription = event.data.object as Stripe.Subscription
+      const customerId = stripeSubscription.customer as string
 
       // Find and update subscription
-      await serviceClient
-        .from("subscriptions")
-        .update({
-          status: "cancelled",
-          plan_tier: "free",
-        })
+      const subsTable = serviceClient.from("subscriptions") as any
+      await subsTable
+        .update({ status: "cancelled", plan_tier: "free" })
         .eq("stripe_customer_id", customerId)
 
       break

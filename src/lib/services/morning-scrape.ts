@@ -38,8 +38,9 @@ async function processUserMorningScrape(userId: string): Promise<MorningScrapeRe
     if (customError) {
       result.errors.push(`Failed to fetch custom sources: ${customError.message}`)
     } else if (customSources && customSources.length > 0) {
-      // Scrape each custom source
-      for (const source of customSources) {
+      type CustomSourceRow = { id: string; source_name: string; source_url: string }
+      const sources = customSources as CustomSourceRow[]
+      for (const source of sources) {
         try {
           // Note: triggerScrape and processNewsletterEmails use createClient() which requires cookies
           // In cron context, we don't have user cookies, but these functions take userId as parameter
@@ -68,8 +69,9 @@ async function processUserMorningScrape(userId: string): Promise<MorningScrapeRe
     if (newsletterError) {
       result.errors.push(`Failed to fetch newsletter sources: ${newsletterError.message}`)
     } else if (newsletterSources && newsletterSources.length > 0) {
-      // Scrape each newsletter source
-      for (const source of newsletterSources) {
+      type NewsletterSourceRow = { id: string; source_name: string | null }
+      const sources = newsletterSources as NewsletterSourceRow[]
+      for (const source of sources) {
         try {
           const scrapeResult = await processNewsletterEmails(userId, source.id)
           result.newsletterSourcesScraped++
@@ -89,7 +91,8 @@ async function processUserMorningScrape(userId: string): Promise<MorningScrapeRe
       .eq("user_id", userId)
       .single()
 
-    if (prefs?.auto_generate_enabled) {
+    const prefsRow = prefs as { auto_generate_enabled: boolean } | null
+    if (prefsRow?.auto_generate_enabled) {
       try {
         const genResult = await triggerAutoGeneration(userId)
         result.postsGenerated = genResult.postsGenerated
@@ -150,11 +153,12 @@ export async function processAllUsersMorningScrape(): Promise<{
     }
 
     // Combine and deduplicate user IDs
+    type UserIdRow = { user_id: string }
     const userIds = new Set<string>()
-    usersWithCustomSources?.forEach((row) => {
+    ;(usersWithCustomSources as UserIdRow[] | null)?.forEach((row) => {
       if (row.user_id) userIds.add(row.user_id)
     })
-    usersWithNewsletters?.forEach((row) => {
+    ;(usersWithNewsletters as UserIdRow[] | null)?.forEach((row) => {
       if (row.user_id) userIds.add(row.user_id)
     })
 

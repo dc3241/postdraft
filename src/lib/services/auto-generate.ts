@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { createServiceRoleClient } from "@/lib/supabase/service-role"
 import { ApiError } from "@/lib/api/auth"
+import type { Database } from "@/types/database"
 import { discoverTrends } from "./trends"
 import { generatePost } from "./posts"
 
@@ -74,6 +75,7 @@ export async function triggerAutoGeneration(userId: string) {
 
   // Log the auto-generation run
   const serviceClient = createServiceRoleClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase client infers never for this table; payload matches Insert type
   const { data: log, error: logError } = await serviceClient
     .from("auto_generation_logs")
     .insert({
@@ -81,7 +83,7 @@ export async function triggerAutoGeneration(userId: string) {
       posts_generated: postsGenerated.length,
       topics_used: topicsUsed,
       notification_sent: false,
-    })
+    } as any)
     .select()
     .single()
 

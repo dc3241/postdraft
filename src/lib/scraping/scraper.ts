@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio"
 import type { CheerioAPI } from "cheerio"
+import type { Element } from "domhandler"
 import {
   removeNoiseFromHTML,
   extractCleanText,
@@ -149,7 +150,7 @@ function extractAuthor($: CheerioAPI): string | null {
  * Find main content element in HTML
  * Tries multiple strategies to find the primary content
  */
-function findMainContent($: CheerioAPI): cheerio.Cheerio<cheerio.Element> {
+function findMainContent($: CheerioAPI): cheerio.Cheerio<Element> {
   // Strategy 1: article tag
   const $article = $("article").first()
   if ($article.length > 0) {
@@ -163,7 +164,7 @@ function findMainContent($: CheerioAPI): cheerio.Cheerio<cheerio.Element> {
   }
 
   // Strategy 3: largest div with most p tags
-  let $bestDiv: cheerio.Cheerio<cheerio.Element> | null = null
+  let $bestDiv: cheerio.Cheerio<Element> | null = null
   let maxParagraphs = 0
 
   $("div").each((_, element) => {

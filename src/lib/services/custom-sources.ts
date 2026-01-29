@@ -3,6 +3,7 @@ import { ApiError } from "@/lib/api/auth"
 import {
   scrapeUrl,
   isScrapedContent,
+  isScrapeError,
   extractTopicsFromContent,
   filterDuplicateTopics,
   generateContentHash,
@@ -186,9 +187,9 @@ export async function deleteCustomSource(sourceId: string, userId: string) {
 async function handleRssFeedScrape(
   sourceId: string,
   userId: string,
-  feedUrl: string
-) {
-  const supabase = await createClient()
+  feedUrl: string,
+  supabase: Awaited<ReturnType<typeof createClient>>
+): Promise<{ scrape_triggered: boolean; topics_found: number; scrape_successful: boolean; items_processed: number; items_skipped?: number }> {
   console.log(`Scraping RSS feed: ${feedUrl}`, {
     sourceId,
     userId,
@@ -200,7 +201,7 @@ async function handleRssFeedScrape(
 
   // Check if scraping failed
   if (!Array.isArray(rssResult)) {
-    const errorMessage = rssResult.error || "Unknown RSS scraping error"
+    const errorMessage = isScrapeError(rssResult) ? rssResult.error : "Unknown RSS scraping error"
     console.error(`RSS scraping failed for source ${sourceId}`, {
       sourceId,
       url: feedUrl,
@@ -471,7 +472,7 @@ export async function triggerScrape(sourceId: string, userId: string) {
 
     if (!isScrapedContent(scrapeResult)) {
       // Scraping failed
-      const errorMessage = scrapeResult.error || "Unknown scraping error"
+      const errorMessage = isScrapeError(scrapeResult) ? scrapeResult.error : "Unknown scraping error"
       console.error(`Scraping failed for source ${sourceId}`, {
         sourceId,
         url: source.source_url,

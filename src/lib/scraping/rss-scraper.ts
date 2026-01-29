@@ -85,7 +85,7 @@ function parseRss2Feed(xml: string, feedUrl: string): ScrapedContent[] {
         metadata: {
           openGraphTitle: title,
           openGraphDescription: excerpt,
-          openGraphImage: null,
+          openGraphImage: undefined,
           feedTitle: channelTitle,
           feedUrl,
         },
@@ -157,7 +157,7 @@ function parseAtomFeed(xml: string, feedUrl: string): ScrapedContent[] {
         metadata: {
           openGraphTitle: title,
           openGraphDescription: excerpt,
-          openGraphImage: null,
+          openGraphImage: undefined,
           feedTitle,
           feedUrl,
         },
